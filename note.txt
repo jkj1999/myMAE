@@ -1,0 +1,6 @@
+engine
+main:用于训练的主入口文件,主要是数据处理和训练
+models:
+    models_mae:
+    models_vit:与mae参数一致,用于作微调阶段时,加载预训练好的mae中的encoder参数给vit作为encoder
+submitit:facebook任务提交,无需care

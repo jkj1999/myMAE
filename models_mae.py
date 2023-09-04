@@ -26,28 +26,42 @@ class MaskedAutoencoderViT(nn.Module):
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+        # embed_dim就是Encoder的Transformer block的大小
+        # depth是block的个数
+        # 1024,24对应的是ViT-L
+        # mlp_ratio为block中的参数,表示隐藏层维度相对于输入维度的增长倍数,一般为4
+        # norm_pix_loss指定计算loss是否对像素归一化
         super().__init__()
 
         # --------------------------------------------------------------------------
-        # MAE encoder specifics
+        # MAE encoder specifics 具体细节
+        # PatchEmbed用于将patch embedding,来自timm
         self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
         num_patches = self.patch_embed.num_patches
 
+        # cls_token可训练
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        # pos_embed不可训练
+        # num_patches + 1是因为cls_token也占据了一个位置
+        # patch的数目就类似于NLP中一句话中词的数目
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim), requires_grad=False)  # fixed sin-cos embedding
 
+        # 定义transformer的block
+        # Block来自timm
         self.blocks = nn.ModuleList([
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer)
             for i in range(depth)])
+        # 对encoder的output做归一化
         self.norm = norm_layer(embed_dim)
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
         # MAE decoder specifics
+        # 把encoder的输出映射到decoder输入的特征维度
         self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
-
+        # 用于替换被mask掉的块
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
-
+        # 位置嵌入
         self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_embed_dim), requires_grad=False)  # fixed sin-cos embedding
 
         self.decoder_blocks = nn.ModuleList([
@@ -55,11 +69,12 @@ class MaskedAutoencoderViT(nn.Module):
             for i in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
+        # 将输出映射到patch*patch*in_chans大小的像素空间
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
-
+        # 初始化参数
         self.initialize_weights()
 
     def initialize_weights(self):
